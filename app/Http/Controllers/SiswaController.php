@@ -78,11 +78,18 @@ class SiswaController extends Controller
         
         $image = str_replace(['data:image/png;base64,', 'data:image/jpeg;base64,', ' '], ['', '', '+'], $request->input('foto_wajah'));
         $imageName = 'verifikasi/' . uniqid('wajah_') . '.png';
+        Storage::disk('public')->makeDirectory('verifikasi');
         Storage::disk('public')->put($imageName, base64_decode($image));
         
         VerifikasiWajah::create(['pengajuan_izin_id' => $pengajuan->id, 'foto_wajah' => $imageName, 'hasil_verifikasi' => 'berhasil', 'waktu_verifikasi' => now()]);
         ActivityLog::catat(auth()->id(), $pengajuan->id, 'pengajuan_izin', "Siswa {$siswa->nama} mengajukan surat izin dengan verifikasi wajah.");
-        return redirect()->route('siswa.dashboard')->with('success', 'Pengajuan surat izin berhasil dikirim! Silakan tunggu persetujuan guru/petugas.');
+
+        // Kirim WhatsApp otomatis ke Guru Piket jika bot aktif
+        try {
+            \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan->fresh());
+        } catch (\Throwable $e) {}
+
+        return redirect()->route('siswa.dashboard')->with('success', 'Pengajuan surat izin berhasil dikirim! Notifikasi telah dikirim ke guru piket.');
     }
 
     public function detail(PengajuanIzin $pengajuan)

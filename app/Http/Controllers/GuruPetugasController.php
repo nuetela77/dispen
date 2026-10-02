@@ -57,6 +57,10 @@ class GuruPetugasController extends Controller
         SuratIzin::create(['pengajuan_izin_id' => $pengajuan->id, 'nomor_surat' => $nomorSurat, 'kode_verifikasi' => $kodeVerifikasi, 'tanggal_surat' => now()->toDateString(), 'file_surat' => $filename]);
         ActivityLog::catat(auth()->id(), $pengajuan->id, 'approve', "Guru " . auth()->user()->name . " menyetujui izin siswa {$pengajuan->siswa->nama}. Nomor surat: {$nomorSurat}");
         
+        try {
+            \App\Services\WhatsAppService::kirimNotifikasiStatus($pengajuan->fresh());
+        } catch (\Throwable $e) {}
+
         return redirect()->route('guru.dashboard')->with('success', "Izin disetujui! Nomor surat: {$nomorSurat}");
     }
 
@@ -66,6 +70,11 @@ class GuruPetugasController extends Controller
         $request->validate(['catatan_guru' => 'required|string|min:10']);
         $pengajuan->update(['status' => 'ditolak', 'guru_id' => auth()->id(), 'catatan_guru' => $request->catatan_guru]);
         ActivityLog::catat(auth()->id(), $pengajuan->id, 'reject', "Guru " . auth()->user()->name . " menolak izin siswa. Alasan: {$request->catatan_guru}");
+        
+        try {
+            \App\Services\WhatsAppService::kirimNotifikasiStatus($pengajuan->fresh());
+        } catch (\Throwable $e) {}
+
         return redirect()->route('guru.dashboard')->with('success', 'Pengajuan izin telah ditolak.');
     }
 

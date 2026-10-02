@@ -139,7 +139,17 @@
                     {{ $p->suratIzin->nomor_surat ?? '-' }}
                 </td>
                 <td style="white-space:nowrap; text-align: right;">
-                    <a href="{{ route('siswa.detail',$p) }}" class="btn btn-sm btn-outline-secondary" title="Lihat Rincian"><i class="bi bi-eye"></i> Rincian</a>
+                    @if($p->status === 'menunggu')
+                    @php
+                        $guruWa = env('GURU_PIKET_WA', '');
+                        $waPesan = rawurlencode("Halo Bapak/Ibu Guru Piket, saya " . auth()->user()->name . " (" . (auth()->user()->siswa->kelas ?? '') . " " . (auth()->user()->siswa->jurusan ?? '') . ") baru saja mengajukan permohonan dispensasi:\n\n• Alasan: " . $p->alasan_izin . "\n• Waktu: " . substr($p->waktu_mulai,0,5) . " - " . substr($p->waktu_selesai,0,5) . " WIB\n\nMohon kesediaannya untuk memeriksa foto & menyetujui di sistem: " . url('/guru/detail/' . $p->id) . "\n\nTerima kasih.");
+                        $waLink = $guruWa ? "https://api.whatsapp.com/send?phone=" . preg_replace('/^0/', '62', $guruWa) . "&text=" . $waPesan : "https://api.whatsapp.com/send?text=" . $waPesan;
+                    @endphp
+                    <a href="{{ $waLink }}" target="_blank" class="btn btn-sm text-white" style="background:#25D366;border-color:#25D366;font-size:12px;" title="Kirim Notifikasi Langsung ke WhatsApp Guru">
+                        <i class="bi bi-whatsapp"></i> WA Guru
+                    </a>
+                    @endif
+                    <a href="{{ route('siswa.detail',$p) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Lihat Rincian"><i class="bi bi-eye"></i> Rincian</a>
                     @if($p->suratIzin && $p->suratIzin->file_surat)
                     <a href="{{ route('siswa.download',$p) }}" target="_blank" class="btn btn-sm btn-primary ms-1" title="Unduh Surat Resmi PDF"><i class="bi bi-file-pdf"></i> PDF</a>
                     @endif
