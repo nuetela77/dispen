@@ -203,7 +203,7 @@ class WhatsAppService
         }
 
         $statusFoto = $sudahAdaFoto 
-            ? "Foto verifikasi selfie telah diunggah." 
+            ? "Foto selfie verifikasi wajah telah diunggah & siap ditinjau." 
             : "Siswa sedang diarahkan mengambil foto selfie.";
 
         $pesan = "*NOTIFIKASI PENGAJUAN DISPENSASI BARU*\n";
@@ -220,7 +220,7 @@ class WhatsAppService
         $pesan .= "_Pesan otomatis Sistem Dispensasi Digital SMKN 1_";
 
         $res = self::kirimPesan($target, $pesan, $token);
-        self::logDispatch('Pengajuan Baru (Form)', $target, $res, $pengajuan->id);
+        self::logDispatch($sudahAdaFoto ? 'Pengajuan + Foto Selesai' : 'Pengajuan Form', $target, $res, $pengajuan->id);
         Log::info("WhatsApp Bot pengajuan baru #{$pengajuan->id} dikirim ke {$target}: " . json_encode($res));
         return $res;
     }

@@ -81,7 +81,7 @@ Route::match(['get', 'post'], '/test-wa', function (\Illuminate\Http\Request $re
             }
             $pengajuan = \App\Models\PengajuanIzin::latest()->first();
             if ($pengajuan) {
-                $result = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan, false);
+                $result = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan, true);
             } else {
                 $result = ['status' => false, 'reason' => 'Belum ada data surat izin di database untuk simulasi.'];
             }

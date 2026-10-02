@@ -69,21 +69,8 @@ class SiswaController extends Controller
 
         ActivityLog::catat(auth()->id(), $pengajuan->id, 'pengajuan_izin', "Siswa {$siswa->nama} membuat surat pengajuan izin.");
 
-        // KIRIM NOTIFIKASI WHATSAPP OTOMATIS LANGSUNG KE GURU PIKET
-        $infoMsg = 'Pengajuan izin berhasil dibuat! Silakan ambil foto selfie untuk melengkapi verifikasi.';
-        try {
-            $waRes = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan, false);
-            \Illuminate\Support\Facades\Log::info("Kirim WA pengajuan baru #{$pengajuan->id}: " . json_encode($waRes));
-            if (($waRes['status'] ?? false) === true) {
-                $infoMsg = 'Pengajuan izin berhasil dibuat & notifikasi WhatsApp telah terkirim ke guru piket! Silakan ambil foto selfie.';
-            } elseif (!empty($waRes['reason'])) {
-                $infoMsg = 'Pengajuan izin berhasil dibuat. (Bot WA: ' . $waRes['reason'] . '). Silakan ambil foto selfie.';
-            }
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Gagal kirim WA pengajuan baru #{$pengajuan->id}: " . $e->getMessage());
-        }
-
-        return redirect()->route('siswa.verifikasi-wajah', $pengajuan)->with('info', $infoMsg);
+        return redirect()->route('siswa.verifikasi-wajah', $pengajuan)
+            ->with('info', 'Data pengajuan telah dicatat. Silakan ambil atau upload foto wajah untuk melengkapi permohonan.');
     }
 
     public function showVerifikasiWajah(PengajuanIzin $pengajuan)
@@ -111,15 +98,18 @@ class SiswaController extends Controller
         );
         ActivityLog::catat(auth()->id(), $pengajuan->id, 'pengajuan_izin', "Siswa {$siswa->nama} mengunggah foto verifikasi wajah.");
 
+        // KIRIM TEPAT 1 NOTIFIKASI UTAMA KE GURU PIKET SETELAH VERIFIKASI WAJAH SELESAI
         $suksesMsg = 'Pengajuan surat izin dan foto verifikasi berhasil dikirim!';
         try {
-            $waRes = \App\Services\WhatsAppService::kirimNotifikasiFotoDiunggah($pengajuan->fresh());
-            \Illuminate\Support\Facades\Log::info("Kirim WA update foto #{$pengajuan->id}: " . json_encode($waRes));
+            $waRes = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan->fresh(), true);
+            \Illuminate\Support\Facades\Log::info("Kirim WA pengajuan lengkap #{$pengajuan->id}: " . json_encode($waRes));
             if (($waRes['status'] ?? false) === true) {
-                $suksesMsg = 'Pengajuan surat izin dan foto verifikasi berhasil dikirim! Notifikasi update foto telah dikirim ke guru piket.';
+                $suksesMsg = 'Pengajuan surat izin & foto berhasil dikirim! Notifikasi WhatsApp telah terkirim ke Guru Piket.';
+            } elseif (!empty($waRes['reason'])) {
+                $suksesMsg .= ' (Info Bot WA: ' . $waRes['reason'] . ')';
             }
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Gagal kirim WA update foto #{$pengajuan->id}: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Gagal kirim WA pengajuan lengkap #{$pengajuan->id}: " . $e->getMessage());
         }
 
         return redirect()->route('siswa.dashboard')->with('success', $suksesMsg);
