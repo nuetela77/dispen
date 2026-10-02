@@ -104,14 +104,26 @@ async function startCamera() {
 
 function ambilFoto() {
     const canvas = document.getElementById('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    let w = video.videoWidth || 640;
+    let h = video.videoHeight || 480;
+    const maxDim = 640;
+    if (w > maxDim || h > maxDim) {
+        if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+        } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+        }
+    }
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
     tampilkanPreview(dataUrl);
 }
 
@@ -120,7 +132,29 @@ function pilihFile(input) {
         const file = input.files[0];
         const reader = new FileReader();
         reader.onload = function(e) {
-            tampilkanPreview(e.target.result);
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.getElementById('canvas');
+                let w = img.width;
+                let h = img.height;
+                const maxDim = 640;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) {
+                        h = Math.round((h * maxDim) / w);
+                        w = maxDim;
+                    } else {
+                        w = Math.round((w * maxDim) / h);
+                        h = maxDim;
+                    }
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                tampilkanPreview(dataUrl);
+            };
+            img.src = e.target.result;
         };
         reader.readAsDataURL(file);
     }

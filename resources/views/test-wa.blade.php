@@ -60,7 +60,7 @@
             <div class="d-flex justify-content-between align-items-center pt-2" style="border-top: 1px dashed #cbd5e1; font-size: 11.5px;">
                 <span class="text-muted">Penyimpanan Konfigurasi:</span>
                 @if($config['has_saved_file'])
-                    <span class="text-success fw-semibold"><i class="bi bi-hdd-fill me-1"></i> Tersimpan Permanen di Storage Server</span>
+                    <span class="text-success fw-semibold"><i class="bi bi-database-check me-1"></i> Tersimpan Permanen di Database Server</span>
                 @else
                     <span class="text-muted"><i class="bi bi-sliders me-1"></i> Menggunakan Variabel Environment</span>
                 @endif

@@ -48,7 +48,8 @@ RUN mkdir -p storage/app/public/verifikasi \
              storage/logs \
              database \
     && touch database/database.sqlite \
-    && chmod -R 777 storage bootstrap/cache database
+    && chmod -R 777 storage bootstrap/cache database \
+    && echo "upload_max_filesize = 32M\npost_max_size = 32M\nmemory_limit = 256M" > /usr/local/etc/php/conf.d/uploads.ini
 
 EXPOSE 8080
 

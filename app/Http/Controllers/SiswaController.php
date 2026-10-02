@@ -87,8 +87,11 @@ class SiswaController extends Controller
         if ($pengajuan->siswa_id !== $siswa->id) abort(403);
         $request->validate(['foto_wajah' => 'required|string']);
         
-        $image = str_replace(['data:image/png;base64,', 'data:image/jpeg;base64,', ' '], ['', '', '+'], $request->input('foto_wajah'));
-        $imageName = 'verifikasi/' . uniqid('wajah_') . '.png';
+        $rawImage = $request->input('foto_wajah');
+        $image = preg_replace('/^data:image\/[a-z0-9]+;base64,/i', '', $rawImage);
+        $image = str_replace(' ', '+', $image);
+        $ext = str_contains($rawImage, 'image/png') ? 'png' : 'jpg';
+        $imageName = 'verifikasi/' . uniqid('wajah_') . '.' . $ext;
         Storage::disk('public')->makeDirectory('verifikasi');
         Storage::disk('public')->put($imageName, base64_decode($image));
         

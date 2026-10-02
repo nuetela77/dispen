@@ -23,10 +23,20 @@ class WhatsAppService
     }
 
     /**
-     * Ambil konfigurasi tersimpan (dari file lokal storage atau environment variables)
+     * Ambil konfigurasi tersimpan (dari DB app_settings, file lokal storage, cache, atau environment variables)
      */
     public static function getConfig(): array
     {
+        $dbSettings = [];
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('app_settings')) {
+                $rows = \Illuminate\Support\Facades\DB::table('app_settings')->get();
+                foreach ($rows as $row) {
+                    $dbSettings[$row->key] = $row->value;
+                }
+            }
+        } catch (\Throwable $e) {}
+
         $saved = [];
         $filePath = storage_path('app/wa_config.json');
         if (file_exists($filePath)) {
@@ -36,8 +46,17 @@ class WhatsAppService
             }
         }
 
+        $cachedToken = null;
+        $cachedGuruWa = null;
+        try {
+            $cachedToken = \Illuminate\Support\Facades\Cache::get('wa_token');
+            $cachedGuruWa = \Illuminate\Support\Facades\Cache::get('wa_guru');
+        } catch (\Throwable $e) {}
+
         $token = trim((string) (
-            ($saved['token'] ?? null)
+            ($dbSettings['wa_token'] ?? null)
+            ?: ($saved['token'] ?? null)
+            ?: $cachedToken
             ?: config('services.fonnte.token')
             ?: env('FONNTE_TOKEN')
             ?: env('TOKEN_FONNTE')
@@ -47,7 +66,9 @@ class WhatsAppService
         ));
 
         $guruWa = trim((string) (
-            ($saved['guru_wa'] ?? null)
+            ($dbSettings['wa_guru'] ?? null)
+            ?: ($saved['guru_wa'] ?? null)
+            ?: $cachedGuruWa
             ?: config('services.fonnte.guru_wa')
             ?: env('GURU_PIKET_WA')
             ?: env('GURU_WA')
@@ -63,16 +84,21 @@ class WhatsAppService
             ?: ''
         ));
 
+        // Abaikan nomor dummy contoh jika belum diisi user
+        if ($guruWa === '081234567890') {
+            $guruWa = '';
+        }
+
         return [
             'token' => $token,
             'guru_wa' => $guruWa,
-            'has_saved_file' => !empty($saved['guru_wa'] ?? null),
+            'has_saved_file' => !empty($dbSettings['wa_guru'] ?? null) || !empty($saved['guru_wa'] ?? null) || !empty($cachedGuruWa),
             'saved_at' => $saved['updated_at'] ?? null,
         ];
     }
 
     /**
-     * Simpan konfigurasi token dan no WA guru ke file storage permanen
+     * Simpan konfigurasi token dan no WA guru ke DB permanen, storage file, dan cache
      */
     public static function saveConfig(string $token, string $guruWa): bool
     {
@@ -84,10 +110,31 @@ class WhatsAppService
             ];
             @mkdir(storage_path('app'), 0755, true);
             file_put_contents(storage_path('app/wa_config.json'), json_encode($data, JSON_PRETTY_PRINT));
-            Log::info("wa_config.json berhasil disimpan dengan target guru: " . $data['guru_wa']);
+            
+            try {
+                \Illuminate\Support\Facades\Cache::forever('wa_token', trim($token));
+                \Illuminate\Support\Facades\Cache::forever('wa_guru', trim($guruWa));
+            } catch (\Throwable $e) {}
+
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('app_settings')) {
+                    \Illuminate\Support\Facades\DB::table('app_settings')->updateOrInsert(
+                        ['key' => 'wa_token'],
+                        ['value' => trim($token), 'updated_at' => now()]
+                    );
+                    \Illuminate\Support\Facades\DB::table('app_settings')->updateOrInsert(
+                        ['key' => 'wa_guru'],
+                        ['value' => trim($guruWa), 'updated_at' => now()]
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Gagal simpan ke DB app_settings: " . $e->getMessage());
+            }
+
+            Log::info("wa_config berhasil disimpan (DB + file + cache): " . $data['guru_wa']);
             return true;
         } catch (\Throwable $e) {
-            Log::error("Gagal simpan wa_config.json: " . $e->getMessage());
+            Log::error("Gagal simpan wa_config: " . $e->getMessage());
             return false;
         }
     }

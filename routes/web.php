@@ -96,6 +96,9 @@ Route::match(['get', 'post'], '/test-wa', function (\Illuminate\Http\Request $re
 
     $config = \App\Services\WhatsAppService::getConfig();
     $target = $request->input('target', $config['guru_wa']);
+    if ($target === '081234567890') {
+        $target = '';
+    }
     $token = $request->input('token', $config['token']);
     $logs = \App\Services\WhatsAppService::getLogs();
 
