@@ -1,5 +1,13 @@
 <?php
 
+if (PHP_VERSION_ID < 80300) {
+    $uri = $_SERVER['REQUEST_URI'] ?? '/';
+    $cleanPath = preg_replace('#^/dispensasi-sekolah/public#i', '', $uri);
+    if (empty($cleanPath) || $cleanPath === '') $cleanPath = '/';
+    header("Location: http://localhost:8080" . $cleanPath);
+    exit;
+}
+
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 
