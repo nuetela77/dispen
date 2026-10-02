@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers;
+
 use App\Models\ActivityLog;
 use App\Models\PengajuanIzin;
 use App\Models\VerifikasiWajah;
@@ -16,14 +17,13 @@ class SiswaController extends Controller
             return view('siswa.dashboard', ['pengajuans' => collect(), 'stats' => ['total'=>0,'menunggu'=>0,'disetujui'=>0,'ditolak'=>0]]);
         }
         $pengajuans = PengajuanIzin::where('siswa_id', $siswa->id)
-            ->whereHas('verifikasiWajah')
-            ->with('suratIzin')
+            ->with(['suratIzin', 'verifikasiWajah'])
             ->orderByDesc('created_at')
             ->paginate(10);
 
         $stats = [
-            'total' => PengajuanIzin::where('siswa_id', $siswa->id)->whereHas('verifikasiWajah')->count(),
-            'menunggu' => PengajuanIzin::where('siswa_id', $siswa->id)->whereHas('verifikasiWajah')->where('status', 'menunggu')->count(),
+            'total' => PengajuanIzin::where('siswa_id', $siswa->id)->count(),
+            'menunggu' => PengajuanIzin::where('siswa_id', $siswa->id)->where('status', 'menunggu')->count(),
             'disetujui' => PengajuanIzin::where('siswa_id', $siswa->id)->where('status', 'disetujui')->count(),
             'ditolak' => PengajuanIzin::where('siswa_id', $siswa->id)->where('status', 'ditolak')->count(),
         ];
@@ -43,23 +43,42 @@ class SiswaController extends Controller
             'tanggal_izin' => 'required|date',
             'waktu_mulai' => 'required',
             'waktu_selesai' => 'required|after:waktu_mulai',
+        ], [
+            'alasan_izin.required' => 'Alasan izin wajib diisi.',
+            'alasan_izin.min' => 'Alasan minimal 10 karakter.',
+            'tanggal_izin.required' => 'Tanggal izin wajib diisi.',
+            'waktu_mulai.required' => 'Waktu mulai wajib diisi.',
+            'waktu_selesai.required' => 'Waktu selesai wajib diisi.',
+            'waktu_selesai.after' => 'Waktu selesai harus setelah waktu mulai.',
         ]);
-        $siswa = auth()->user()->siswa;
-        
-        // Hapus draf pengajuan sebelumnya yang belum ada foto verifikasi
-        PengajuanIzin::where('siswa_id', $siswa->id)
-            ->where('status', 'menunggu')
-            ->whereDoesntHave('verifikasiWajah')
-            ->delete();
 
-        $durasi = Carbon::parse($validated['waktu_mulai'])->diffInMinutes(Carbon::parse($validated['waktu_selesai']));
+        $siswa = auth()->user()->siswa;
+        $mulai = Carbon::parse($validated['waktu_mulai']);
+        $selesai = Carbon::parse($validated['waktu_selesai']);
+        $durasi = $mulai->diffInMinutes($selesai);
         
         $pengajuan = PengajuanIzin::create([
-            'siswa_id' => $siswa->id, 'alasan_izin' => $validated['alasan_izin'],
-            'tanggal_izin' => $validated['tanggal_izin'], 'waktu_mulai' => $validated['waktu_mulai'],
-            'waktu_selesai' => $validated['waktu_selesai'], 'durasi_menit' => $durasi, 'status' => 'menunggu',
+            'siswa_id' => $siswa->id,
+            'alasan_izin' => $validated['alasan_izin'],
+            'tanggal_izin' => $validated['tanggal_izin'],
+            'waktu_mulai' => $validated['waktu_mulai'],
+            'waktu_selesai' => $validated['waktu_selesai'],
+            'durasi_menit' => $durasi,
+            'status' => 'menunggu',
         ]);
-        return redirect()->route('siswa.verifikasi-wajah', $pengajuan)->with('info', 'Silakan lakukan verifikasi wajah untuk menyelesaikan pengajuan.');
+
+        ActivityLog::catat(auth()->id(), $pengajuan->id, 'pengajuan_izin', "Siswa {$siswa->nama} membuat surat pengajuan izin.");
+
+        // KIRIM NOTIFIKASI WHATSAPP OTOMATIS LANGSUNG KE GURU PIKET
+        try {
+            $waRes = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan, false);
+            \Illuminate\Support\Facades\Log::info("Kirim WA pengajuan baru #{$pengajuan->id}: " . json_encode($waRes));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Gagal kirim WA pengajuan baru #{$pengajuan->id}: " . $e->getMessage());
+        }
+
+        return redirect()->route('siswa.verifikasi-wajah', $pengajuan)
+            ->with('info', 'Pengajuan berhasil dikirim & guru piket telah dinotifikasi. Silakan ambil foto selfie untuk melengkapi verifikasi.');
     }
 
     public function showVerifikasiWajah(PengajuanIzin $pengajuan)
@@ -81,15 +100,21 @@ class SiswaController extends Controller
         Storage::disk('public')->makeDirectory('verifikasi');
         Storage::disk('public')->put($imageName, base64_decode($image));
         
-        VerifikasiWajah::create(['pengajuan_izin_id' => $pengajuan->id, 'foto_wajah' => $imageName, 'hasil_verifikasi' => 'berhasil', 'waktu_verifikasi' => now()]);
-        ActivityLog::catat(auth()->id(), $pengajuan->id, 'pengajuan_izin', "Siswa {$siswa->nama} mengajukan surat izin dengan verifikasi wajah.");
+        VerifikasiWajah::updateOrCreate(
+            ['pengajuan_izin_id' => $pengajuan->id],
+            ['foto_wajah' => $imageName, 'hasil_verifikasi' => 'berhasil', 'waktu_verifikasi' => now()]
+        );
+        ActivityLog::catat(auth()->id(), $pengajuan->id, 'pengajuan_izin', "Siswa {$siswa->nama} mengunggah foto verifikasi wajah.");
 
-        // Kirim WhatsApp otomatis ke Guru Piket jika bot aktif
+        // Kirim update WhatsApp otomatis ke Guru Piket
         try {
-            \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan->fresh());
-        } catch (\Throwable $e) {}
+            $waRes = \App\Services\WhatsAppService::kirimNotifikasiFotoDiunggah($pengajuan->fresh());
+            \Illuminate\Support\Facades\Log::info("Kirim WA update foto #{$pengajuan->id}: " . json_encode($waRes));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Gagal kirim WA update foto #{$pengajuan->id}: " . $e->getMessage());
+        }
 
-        return redirect()->route('siswa.dashboard')->with('success', 'Pengajuan surat izin berhasil dikirim! Notifikasi telah dikirim ke guru piket.');
+        return redirect()->route('siswa.dashboard')->with('success', 'Pengajuan surat izin dan foto verifikasi berhasil dikirim! Menunggu persetujuan guru.');
     }
 
     public function detail(PengajuanIzin $pengajuan)

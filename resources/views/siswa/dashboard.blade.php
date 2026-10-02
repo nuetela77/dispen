@@ -150,6 +150,9 @@
                     </a>
                     @endif
                     <a href="{{ route('siswa.detail',$p) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Lihat Rincian"><i class="bi bi-eye"></i> Rincian</a>
+                    @if($p->status === 'menunggu' && !$p->verifikasiWajah)
+                    <a href="{{ route('siswa.verifikasi-wajah', $p) }}" class="btn btn-sm btn-outline-warning ms-1" title="Ambil / Upload Foto Selfie"><i class="bi bi-camera"></i> Foto</a>
+                    @endif
                     @if($p->suratIzin && $p->suratIzin->file_surat)
                     <a href="{{ route('siswa.download',$p) }}" target="_blank" class="btn btn-sm btn-primary ms-1" title="Unduh Surat Resmi PDF"><i class="bi bi-file-pdf"></i> PDF</a>
                     @endif

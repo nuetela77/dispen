@@ -14,21 +14,25 @@
         <div class="card-body p-4 text-center">
 
             <p style="font-size:13px;color:#64748b;margin-bottom:18px;">
-                Posisikan wajah Anda tepat di dalam area kamera, lalu tekan tombol ambil foto.
+                Ambil foto selfie langsung via kamera atau upload foto wajah Anda untuk melengkapi surat izin.
             </p>
 
             {{-- Kamera Container --}}
             <div id="camera-section">
                 <div style="position:relative;width:100%;max-width:380px;aspect-ratio:4/3;margin:0 auto;background:#0f172a;border-radius:8px;overflow:hidden;border:1px solid #334155;">
                     <video id="video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
-                    <div id="camera-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px;background:#0f172a;">
+                    <div id="camera-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px;background:#0f172a;padding:15px;">
                         <span class="spinner-border spinner-border-sm me-2" role="status"></span> Menghubungkan kamera...
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
                     <button type="button" id="capture-btn" class="btn btn-primary" onclick="ambilFoto()">
-                        <i class="bi bi-camera-fill me-1"></i> Ambil Foto
+                        <i class="bi bi-camera-fill me-1"></i> Ambil Foto Kamera
                     </button>
+                    <label class="btn btn-outline-secondary" style="cursor:pointer;margin:0;">
+                        <i class="bi bi-upload me-1"></i> Upload dari File / Galeri
+                        <input type="file" id="file-upload" accept="image/*" class="d-none" onchange="pilihFile(this)">
+                    </label>
                 </div>
             </div>
 
@@ -46,15 +50,21 @@
                         @csrf
                         <input type="hidden" name="foto_wajah" id="foto_wajah">
                         <button type="submit" class="btn btn-success" id="btn-kirim">
-                            <i class="bi bi-check-lg me-1"></i> Konfirmasi & Kirim
+                            <i class="bi bi-check-lg me-1"></i> Konfirmasi & Kirim Foto
                         </button>
                     </form>
                 </div>
             </div>
 
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;margin-top:24px;text-align:left;font-size:12px;color:#475569;">
+            <div class="mt-4 pt-3" style="border-top:1px dashed #e2e8f0;">
+                <a href="{{ route('siswa.dashboard') }}" class="text-decoration-none" style="font-size:12.5px;color:#64748b;">
+                    <i class="bi bi-check2-circle me-1 text-success"></i> Surat sudah tercatat. Kembali ke Dashboard jika ingin foto nanti &rarr;
+                </a>
+            </div>
+
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;margin-top:20px;text-align:left;font-size:12px;color:#475569;">
                 <div style="font-weight:600;color:#1e293b;margin-bottom:2px;"><i class="bi bi-shield-check me-1 text-primary"></i> Tujuan Verifikasi</div>
-                Foto digunakan guru petugas piket untuk memastikan keaslian identitas siswa pemohon sebelum menerbitkan surat izin.
+                Foto digunakan guru petugas piket untuk memastikan keaslian identitas siswa sebelum menerbitkan surat izin resmi.
             </div>
 
         </div>
@@ -73,7 +83,10 @@ const loading = document.getElementById('camera-loading');
 
 async function startCamera() {
     try {
-        if (loading) loading.style.display = 'flex';
+        if (loading) {
+            loading.style.display = 'flex';
+            loading.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span> Menghubungkan kamera...';
+        }
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
         });
@@ -82,7 +95,10 @@ async function startCamera() {
             if (loading) loading.style.display = 'none';
         };
     } catch(e) {
-        if (loading) loading.textContent = 'Gagal mengakses kamera. Periksa izin kamera pada browser.';
+        if (loading) {
+            loading.style.display = 'flex';
+            loading.innerHTML = '<span>Kamera tidak aktif/izin browser belum diberikan.<br><small style="color:#cbd5e1;">Gunakan tombol <b>Upload dari File/Galeri</b> di bawah.</small></span>';
+        }
     }
 }
 
@@ -96,6 +112,21 @@ function ambilFoto() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const dataUrl = canvas.toDataURL('image/png');
+    tampilkanPreview(dataUrl);
+}
+
+function pilihFile(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            tampilkanPreview(e.target.result);
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function tampilkanPreview(dataUrl) {
     document.getElementById('foto-preview').src = dataUrl;
     document.getElementById('foto_wajah').value = dataUrl;
 
@@ -118,7 +149,7 @@ document.getElementById('form-verifikasi').addEventListener('submit', function(e
     const fotoInput = document.getElementById('foto_wajah');
     if (!fotoInput || !fotoInput.value) {
         e.preventDefault();
-        alert('Silakan ambil foto wajah terlebih dahulu.');
+        alert('Silakan ambil atau upload foto wajah terlebih dahulu.');
         return false;
     }
     const btn = document.getElementById('btn-kirim');
@@ -130,7 +161,7 @@ document.getElementById('form-verifikasi').addEventListener('submit', function(e
         btn.dataset.submitting = 'true';
         btn.classList.add('disabled');
         btn.style.pointerEvents = 'none';
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Mengirim...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Mengirim Foto...';
     }
 });
 

@@ -23,52 +23,122 @@ class WhatsAppService
     }
 
     /**
+     * Helper deteksi URL aplikasi publik
+     */
+    public static function getAppUrl(): string
+    {
+        if (!app()->runningInConsole()) {
+            $appUrl = url('/');
+            // Jika berjalan di balik HTTPS proxy (seperti Railway)
+            if (request()->header('x-forwarded-proto') === 'https' && str_starts_with($appUrl, 'http://')) {
+                $appUrl = 'https://' . substr($appUrl, 7);
+            }
+            if (!empty($appUrl) && !str_contains($appUrl, 'localhost')) {
+                return rtrim($appUrl, '/');
+            }
+        }
+
+        $envUrl = rtrim((string) env('APP_URL'), '/');
+        if (!empty($envUrl) && !str_contains($envUrl, 'localhost')) {
+            return $envUrl;
+        }
+
+        return 'https://dispen-production.up.railway.app';
+    }
+
+    /**
      * Kirim notifikasi WhatsApp otomatis ke guru piket saat ada pengajuan baru.
      */
-    public static function kirimNotifikasiPengajuanBaru(PengajuanIzin $pengajuan): array
+    public static function kirimNotifikasiPengajuanBaru(PengajuanIzin $pengajuan, bool $sudahAdaFoto = false): array
     {
         $token = trim((string) (config('services.fonnte.token') ?: env('FONNTE_TOKEN')));
         $rawTarget = trim((string) (config('services.fonnte.guru_wa') ?: env('GURU_PIKET_WA', env('WA_TARGET_NUMBER'))));
 
         if (empty($token)) {
-            Log::warning("WhatsApp Bot: FONNTE_TOKEN belum diisi di environment variables Railway.");
+            Log::warning("WhatsApp Bot: FONNTE_TOKEN belum diatur di Railway / .env.");
             return ['status' => false, 'reason' => 'FONNTE_TOKEN belum diatur di Railway'];
         }
 
         if (empty($rawTarget)) {
-            Log::warning("WhatsApp Bot: GURU_PIKET_WA belum diisi di environment variables Railway.");
+            Log::warning("WhatsApp Bot: GURU_PIKET_WA belum diatur di Railway / .env.");
             return ['status' => false, 'reason' => 'GURU_PIKET_WA belum diatur di Railway'];
         }
 
         $target = self::formatNomor($rawTarget);
-
-        // Ambil URL aplikasi saat ini (otomatis deteksi HTTPS di cloud)
-        $appUrl = rtrim((string) env('APP_URL'), '/');
-        if (empty($appUrl) || $appUrl === 'http://localhost') {
-            $appUrl = url('/');
-        }
+        $appUrl = self::getAppUrl();
         $urlReview = $appUrl . '/guru/detail/' . $pengajuan->id;
 
+        $pengajuan->loadMissing('siswa');
         $siswa = $pengajuan->siswa;
-        $namaSiswa = $siswa ? $siswa->nama : 'Siswa';
-        $kelas = $siswa ? ($siswa->kelas . ' - ' . $siswa->jurusan) : '-';
-        $waktu = substr($pengajuan->waktu_mulai, 0, 5) . ' s/d ' . substr($pengajuan->waktu_selesai, 0, 5) . ' WIB (' . $pengajuan->durasi_menit . ' menit)';
-        $tanggal = $pengajuan->tanggal_izin ? $pengajuan->tanggal_izin->format('d/m/Y') : date('d/m/Y');
+        $namaSiswa = $siswa ? ($siswa->nama ?? 'Siswa') : 'Siswa';
+        $kelas = $siswa ? trim(($siswa->kelas ?? '') . ' ' . ($siswa->jurusan ?? '')) : '-';
+        
+        $waktuMulai = !empty($pengajuan->waktu_mulai) ? substr((string) $pengajuan->waktu_mulai, 0, 5) : '-';
+        $waktuSelesai = !empty($pengajuan->waktu_selesai) ? substr((string) $pengajuan->waktu_selesai, 0, 5) : '-';
+        $durasi = $pengajuan->durasi_menit ?? 0;
+        $waktu = "{$waktuMulai} s/d {$waktuSelesai} WIB ({$durasi} menit)";
+
+        try {
+            $tanggal = !empty($pengajuan->tanggal_izin) 
+                ? \Carbon\Carbon::parse($pengajuan->tanggal_izin)->format('d/m/Y') 
+                : date('d/m/Y');
+        } catch (\Throwable $e) {
+            $tanggal = date('d/m/Y');
+        }
+
+        $statusFoto = $sudahAdaFoto 
+            ? "✅ Foto verifikasi selfie telah diunggah." 
+            : "⏳ Siswa diarahkan mengambil foto selfie verifikasi.";
 
         $pesan = "🔔 *NOTIFIKASI PENGAJUAN DISPENSASI BARU*\n";
         $pesan .= "SMK Negeri 1 Jakarta\n\n";
-        $pesan .= "Halo Bapak/Ibu Guru Piket, ada siswa yang baru saja mengajukan surat dispensasi:\n\n";
+        $pesan .= "Halo Bapak/Ibu Guru Piket, ada permohonan surat izin baru masuk ke sistem:\n\n";
         $pesan .= "👤 *Nama Siswa:* " . $namaSiswa . "\n";
         $pesan .= "🏫 *Kelas / Jurusan:* " . $kelas . "\n";
         $pesan .= "📅 *Tanggal:* " . $tanggal . "\n";
         $pesan .= "⏰ *Waktu:* " . $waktu . "\n";
-        $pesan .= "📝 *Alasan Izin:*\n\"" . $pengajuan->alasan_izin . "\"\n\n";
-        $pesan .= "📸 *Status:* Foto selfie verifikasi wajah telah diambil.\n\n";
-        $pesan .= "Silakan klik link berikut untuk melihat foto siswa & memproses ACC / Tolak:\n";
+        $pesan .= "📝 *Alasan Izin:*\n\"" . ($pengajuan->alasan_izin ?? '-') . "\"\n\n";
+        $pesan .= "📸 *Status Foto:* " . $statusFoto . "\n\n";
+        $pesan .= "Silakan klik tautan di bawah ini untuk melihat detail siswa & menyetujui (ACC) / menolak:\n";
         $pesan .= "👉 " . $urlReview . "\n\n";
-        $pesan .= "_Pesan otomatis dikirim oleh Sistem Dispensasi SMKN 1_";
+        $pesan .= "_Pesan otomatis Sistem Dispensasi Digital SMKN 1_";
 
-        return self::kirimPesan($target, $pesan, $token);
+        $res = self::kirimPesan($target, $pesan, $token);
+        Log::info("WhatsApp Bot pengajuan baru #{$pengajuan->id} dikirim ke {$target}: " . json_encode($res));
+        return $res;
+    }
+
+    /**
+     * Kirim notifikasi foto verifikasi wajah berhasil diupload
+     */
+    public static function kirimNotifikasiFotoDiunggah(PengajuanIzin $pengajuan): array
+    {
+        $token = trim((string) (config('services.fonnte.token') ?: env('FONNTE_TOKEN')));
+        $rawTarget = trim((string) (config('services.fonnte.guru_wa') ?: env('GURU_PIKET_WA', env('WA_TARGET_NUMBER'))));
+
+        if (empty($token) || empty($rawTarget)) {
+            return ['status' => false, 'reason' => 'Konfigurasi WA belum lengkap'];
+        }
+
+        $target = self::formatNomor($rawTarget);
+        $appUrl = self::getAppUrl();
+        $urlReview = $appUrl . '/guru/detail/' . $pengajuan->id;
+
+        $pengajuan->loadMissing('siswa');
+        $namaSiswa = $pengajuan->siswa ? ($pengajuan->siswa->nama ?? 'Siswa') : 'Siswa';
+        $kelas = $pengajuan->siswa ? trim(($pengajuan->siswa->kelas ?? '') . ' ' . ($pengajuan->siswa->jurusan ?? '')) : '-';
+
+        $pesan = "📸 *FOTO VERIFIKASI SELESAI DIUNGGAH*\n";
+        $pesan .= "SMK Negeri 1 Jakarta\n\n";
+        $pesan .= "Siswa *{$namaSiswa}* ({$kelas}) telah menyelesaikan verifikasi wajah selfie untuk pengajuan izinnya.\n\n";
+        $pesan .= "Foto verifikasi telah tersimpan dan siap ditinjau.\n\n";
+        $pesan .= "Silakan klik tautan di bawah untuk melihat foto & ACC surat izin:\n";
+        $pesan .= "👉 {$urlReview}\n\n";
+        $pesan .= "_Sistem Dispensasi Digital SMKN 1_";
+
+        $res = self::kirimPesan($target, $pesan, $token);
+        Log::info("WhatsApp Bot update foto pengajuan #{$pengajuan->id} dikirim ke {$target}: " . json_encode($res));
+        return $res;
     }
 
     /**
@@ -89,10 +159,7 @@ class WhatsAppService
         $target = self::formatNomor($target);
         $statusText = $pengajuan->status === 'disetujui' ? 'DISETUJUI ✅' : 'DITOLAK ❌';
 
-        $appUrl = rtrim((string) env('APP_URL'), '/');
-        if (empty($appUrl) || $appUrl === 'http://localhost') {
-            $appUrl = url('/');
-        }
+        $appUrl = self::getAppUrl();
         $urlDetail = $appUrl . '/siswa/detail/' . $pengajuan->id;
 
         $pesan = "📢 *STATUS PENGAJUAN DISPENSASI*\n\n";

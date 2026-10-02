@@ -10,7 +10,7 @@ class GuruPetugasController extends Controller
     public function dashboard(Request $request)
     {
         $statusFilter = $request->get('status', 'menunggu');
-        $query = PengajuanIzin::whereHas('verifikasiWajah')->with(['siswa', 'verifikasiWajah', 'suratIzin'])->orderByDesc('created_at');
+        $query = PengajuanIzin::with(['siswa', 'verifikasiWajah', 'suratIzin'])->orderByDesc('created_at');
         if ($statusFilter !== 'semua') $query->where('status', $statusFilter);
         if ($request->filled('tanggal')) $query->whereDate('tanggal_izin', $request->tanggal);
         if ($request->filled('search')) {
@@ -21,7 +21,7 @@ class GuruPetugasController extends Controller
         }
         $pengajuans = $query->paginate(15);
         $stats = [
-            'menunggu' => PengajuanIzin::whereHas('verifikasiWajah')->where('status', 'menunggu')->count(),
+            'menunggu' => PengajuanIzin::where('status', 'menunggu')->count(),
             'disetujui' => PengajuanIzin::where('status', 'disetujui')->count(),
             'ditolak' => PengajuanIzin::where('status', 'ditolak')->count(),
             'selesai' => PengajuanIzin::where('status', 'selesai')->count(),
