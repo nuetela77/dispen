@@ -73,6 +73,15 @@
                     <span class="text-muted" style="font-size: 12px;">(Opsional - Belum Diisi)</span>
                 @endif
             </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted"><i class="bi bi-database me-1"></i> Database Server:</span>
+                @php $dbDriver = \Illuminate\Support\Facades\DB::connection()->getDriverName(); @endphp
+                @if($dbDriver === 'mysql')
+                    <span class="stat-badge bg-success text-white"><i class="bi bi-check-circle me-1"></i> MySQL Cloud (Permanen)</span>
+                @else
+                    <span class="stat-badge bg-secondary text-white" title="Gunakan Add MySQL di Railway untuk database cloud permanen"><i class="bi bi-hdd me-1"></i> SQLite (Bawaan Container)</span>
+                @endif
+            </div>
             <div class="d-flex justify-content-between align-items-center pt-2" style="border-top: 1px dashed #cbd5e1; font-size: 11.5px;">
                 <span class="text-muted">Penyimpanan Konfigurasi:</span>
                 @if($config['has_saved_file'])
