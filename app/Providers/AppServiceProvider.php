@@ -32,9 +32,13 @@ class AppServiceProvider extends ServiceProvider
 
         // Share pending permits count to the layout for real-time notification badge
         View::composer('layouts.app', function ($view) {
-            if (auth()->check() && auth()->user()->isGuruPetugas()) {
-                $pendingCount = PengajuanIzin::whereHas('verifikasiWajah')->where('status', 'menunggu')->count();
-                $view->with('pendingCount', $pendingCount);
+            try {
+                if (auth()->check() && auth()->user()->isGuruPetugas()) {
+                    $pendingCount = PengajuanIzin::whereHas('verifikasiWajah')->where('status', 'menunggu')->count();
+                    $view->with('pendingCount', $pendingCount);
+                }
+            } catch (\Throwable $e) {
+                $view->with('pendingCount', 0);
             }
         });
     }

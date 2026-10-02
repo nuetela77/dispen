@@ -22,10 +22,17 @@ class LoginController extends Controller
             'password' => 'required|min:6',
         ]);
 
-        if (Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
-            $request->session()->regenerate();
-            ActivityLog::catat(auth()->id(), null, 'login', 'User berhasil login.');
-            return $this->redirectByRole();
+        try {
+            if (Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
+                $request->session()->regenerate();
+                try {
+                    ActivityLog::catat(auth()->id(), null, 'login', 'User berhasil login.');
+                } catch (\Throwable $e) {}
+                return $this->redirectByRole();
+            }
+        } catch (\Throwable $e) {
+            return back()->withInput($request->only('email'))
+                ->withErrors(['email' => 'Koneksi database bermasalah: ' . $e->getMessage()]);
         }
 
         return back()->withInput($request->only('email'))

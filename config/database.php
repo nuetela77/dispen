@@ -46,12 +46,12 @@ return [
 
         'mysql' => [
             'driver' => 'mysql',
-            'url' => env('DB_URL', env('DATABASE_URL', env('MYSQL_URL'))),
-            'host' => env('DB_HOST', env('MYSQLHOST', '127.0.0.1')),
-            'port' => env('DB_PORT', env('MYSQLPORT', '3306')),
-            'database' => env('DB_DATABASE', env('MYSQLDATABASE', 'laravel')),
-            'username' => env('DB_USERNAME', env('MYSQLUSER', 'root')),
-            'password' => env('DB_PASSWORD', env('MYSQLPASSWORD', '')),
+            'url' => env('DATABASE_URL', env('MYSQL_URL', env('DB_URL'))),
+            'host' => env('MYSQLHOST') ?: env('DB_HOST', '127.0.0.1'),
+            'port' => env('MYSQLPORT') ?: env('DB_PORT', '3306'),
+            'database' => env('MYSQLDATABASE') ?: env('DB_DATABASE', 'dispensasi_sekolah'),
+            'username' => env('MYSQLUSER') ?: env('DB_USERNAME', 'root'),
+            'password' => env('MYSQLPASSWORD') !== null ? env('MYSQLPASSWORD') : env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
@@ -60,7 +60,7 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (defined('PDO::MYSQL_ATTR_SSL_CA') ? PDO::MYSQL_ATTR_SSL_CA : 1012) => env('MYSQL_ATTR_SSL_CA'),
+                (defined('Pdo\Mysql::ATTR_SSL_CA') ? Pdo\Mysql::ATTR_SSL_CA : (defined('PDO::MYSQL_ATTR_SSL_CA') ? @constant('PDO::MYSQL_ATTR_SSL_CA') : 1012)) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],
 
@@ -80,7 +80,7 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (defined('PDO::MYSQL_ATTR_SSL_CA') ? PDO::MYSQL_ATTR_SSL_CA : 1012) => env('MYSQL_ATTR_SSL_CA'),
+                (defined('Pdo\Mysql::ATTR_SSL_CA') ? Pdo\Mysql::ATTR_SSL_CA : (defined('PDO::MYSQL_ATTR_SSL_CA') ? @constant('PDO::MYSQL_ATTR_SSL_CA') : 1012)) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],
 
