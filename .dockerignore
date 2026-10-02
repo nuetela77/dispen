@@ -1,8 +1,9 @@
 .git
 .github
 .env
-.env.*
+.env.local
+.env.production
 node_modules
 vendor
-storage/logs/*
 database_backup.sql
+storage/logs/*.log
