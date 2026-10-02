@@ -1,0 +1,12 @@
+# Instruksi Install Laravel via Composer
+# Jalankan file ini SEKALI setelah copy folder proyek ke C:\xampp\htdocs\
+
+# Catatan: Proyek ini adalah STARTER CODE, bukan instalasi Laravel lengkap.
+# Kamu perlu membuat proyek Laravel baru, lalu copy file-file ini ke dalamnya.
+# Ikuti langkah di bawah ini.
+
+# ─────────────────────────────────────────────────────────
+# CARA PALING MUDAH: Pakai Script install.bat (Windows)
+# ─────────────────────────────────────────────────────────
+# Cukup double-click file install.bat yang ada di folder ini.
+# Script itu akan otomatis menjalankan semua langkah.
