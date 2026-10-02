@@ -58,3 +58,16 @@ Route::get('/storage/{path}', function ($path) {
     }
     return response()->file($fullPath);
 })->where('path', '.*');
+
+// Halaman diagnostik dan uji coba pengiriman Bot WhatsApp Fonnte
+Route::match(['get', 'post'], '/test-wa', function (\Illuminate\Http\Request $request) {
+    $result = null;
+    $target = $request->input('target', env('GURU_PIKET_WA', config('services.fonnte.guru_wa', '')));
+    $token = $request->input('token', env('FONNTE_TOKEN', config('services.fonnte.token', '')));
+
+    if ($request->isMethod('post')) {
+        $result = \App\Services\WhatsAppService::testKirim($target, $token);
+    }
+
+    return view('test-wa', compact('result', 'target', 'token'));
+})->name('test-wa');

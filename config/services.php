@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'fonnte' => [
+        'token' => env('FONNTE_TOKEN'),
+        'guru_wa' => env('GURU_PIKET_WA', env('WA_TARGET_NUMBER')),
+    ],
+
 ];
