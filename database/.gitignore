@@ -1,1 +1,2 @@
-*.sqlite*
+# Track database.sqlite so cloud deploy works immediately
+!database.sqlite
