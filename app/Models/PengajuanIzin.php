@@ -11,10 +11,13 @@ class PengajuanIzin extends Model
         'siswa_id', 'guru_id', 'alasan_izin', 'tanggal_izin',
         'waktu_mulai', 'waktu_selesai', 'durasi_menit',
         'status', 'catatan_guru',
+        'wa_sent', 'wa_sent_at', 'wa_recipients',
     ];
 
     protected $casts = [
         'tanggal_izin' => 'date',
+        'wa_sent' => 'boolean',
+        'wa_sent_at' => 'datetime',
     ];
 
     public function siswa() { return $this->belongsTo(Siswa::class); }

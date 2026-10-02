@@ -107,7 +107,8 @@ class SiswaController extends Controller
             $waRes = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan->fresh(), true);
             \Illuminate\Support\Facades\Log::info("Kirim WA pengajuan lengkap #{$pengajuan->id}: " . json_encode($waRes));
             if (($waRes['status'] ?? false) === true) {
-                $suksesMsg = 'Pengajuan surat izin & foto berhasil dikirim! Notifikasi WhatsApp telah terkirim ke Guru Piket.';
+                $penerima = !empty($waRes['recipients']) ? $waRes['recipients'] : 'Guru';
+                $suksesMsg = "Pengajuan surat izin & foto berhasil dikirim! Notifikasi WhatsApp otomatis telah diteruskan ke {$penerima}.";
             } elseif (!empty($waRes['reason'])) {
                 $suksesMsg .= ' (Info Bot WA: ' . $waRes['reason'] . ')';
             }

@@ -111,6 +111,7 @@
                 <th>Alasan Keperluan</th>
                 <th>Rentang Waktu</th>
                 <th>Status</th>
+                <th>Notifikasi WA</th>
                 <th>Nomor Surat</th>
                 <th style="text-align: right;">Aksi</th>
             </tr></thead>
@@ -135,21 +136,26 @@
                         {{ $sl['label'] }}
                     </span>
                 </td>
+                <td>
+                    @if($p->wa_sent)
+                        <span class="badge bg-success-subtle text-success border border-success-subtle py-1 px-2" style="font-size:11.5px;font-weight:600;" title="Terkirim ke: {{ $p->wa_recipients }} ({{ $p->wa_sent_at?->format('H:i') }} WIB)">
+                            <i class="bi bi-whatsapp text-success me-1"></i> Terkirim
+                        </span>
+                    @elseif($p->verifikasiWajah)
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-1 px-2" style="font-size:11px;" title="Menunggu pengiriman bot">
+                            <i class="bi bi-clock me-1"></i> Antrean
+                        </span>
+                    @else
+                        <span class="badge bg-secondary-subtle text-secondary py-1 px-2" style="font-size:11px;" title="Kirim foto selfie terlebih dahulu">
+                            <i class="bi bi-camera me-1"></i> Belum Foto
+                        </span>
+                    @endif
+                </td>
                 <td style="font-size:12px;font-family:'Courier New',monospace;color:#475569;">
                     {{ $p->suratIzin->nomor_surat ?? '-' }}
                 </td>
                 <td style="white-space:nowrap; text-align: right;">
-                    @if($p->status === 'menunggu')
-                    @php
-                        $guruWa = env('GURU_PIKET_WA', '');
-                        $waPesan = rawurlencode("Halo Bapak/Ibu Guru Piket, saya " . auth()->user()->name . " (" . (auth()->user()->siswa->kelas ?? '') . " " . (auth()->user()->siswa->jurusan ?? '') . ") baru saja mengajukan permohonan dispensasi:\n\n• Alasan: " . $p->alasan_izin . "\n• Waktu: " . substr($p->waktu_mulai,0,5) . " - " . substr($p->waktu_selesai,0,5) . " WIB\n\nMohon kesediaannya untuk memeriksa foto & menyetujui di sistem: " . url('/guru/detail/' . $p->id) . "\n\nTerima kasih.");
-                        $waLink = $guruWa ? "https://api.whatsapp.com/send?phone=" . preg_replace('/^0/', '62', $guruWa) . "&text=" . $waPesan : "https://api.whatsapp.com/send?text=" . $waPesan;
-                    @endphp
-                    <a href="{{ $waLink }}" target="_blank" class="btn btn-sm text-white" style="background:#25D366;border-color:#25D366;font-size:12px;" title="Kirim Notifikasi Langsung ke WhatsApp Guru">
-                        <i class="bi bi-whatsapp"></i> WA Guru
-                    </a>
-                    @endif
-                    <a href="{{ route('siswa.detail',$p) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Lihat Rincian"><i class="bi bi-eye"></i> Rincian</a>
+                    <a href="{{ route('siswa.detail',$p) }}" class="btn btn-sm btn-outline-secondary" title="Lihat Rincian"><i class="bi bi-eye"></i> Rincian</a>
                     @if($p->status === 'menunggu' && !$p->verifikasiWajah)
                     <a href="{{ route('siswa.verifikasi-wajah', $p) }}" class="btn btn-sm btn-outline-warning ms-1" title="Ambil / Upload Foto Selfie"><i class="bi bi-camera"></i> Foto</a>
                     @endif

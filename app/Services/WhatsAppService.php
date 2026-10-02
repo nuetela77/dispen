@@ -2,9 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\PengajuanIzin;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class WhatsAppService
 {
@@ -29,8 +33,8 @@ class WhatsAppService
     {
         $dbSettings = [];
         try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('app_settings')) {
-                $rows = \Illuminate\Support\Facades\DB::table('app_settings')->get();
+            if (Schema::hasTable('app_settings')) {
+                $rows = DB::table('app_settings')->get();
                 foreach ($rows as $row) {
                     $dbSettings[$row->key] = $row->value;
                 }
@@ -47,10 +51,14 @@ class WhatsAppService
         }
 
         $cachedToken = null;
-        $cachedGuruWa = null;
+        $cachedPiket = null;
+        $cachedWali = null;
+        $cachedPengajar = null;
         try {
-            $cachedToken = \Illuminate\Support\Facades\Cache::get('wa_token');
-            $cachedGuruWa = \Illuminate\Support\Facades\Cache::get('wa_guru');
+            $cachedToken = Cache::get('wa_token');
+            $cachedPiket = Cache::get('wa_guru_piket') ?: Cache::get('wa_guru');
+            $cachedWali = Cache::get('wa_guru_wali');
+            $cachedPengajar = Cache::get('wa_guru_pengajar');
         } catch (\Throwable $e) {}
 
         $token = trim((string) (
@@ -65,78 +73,159 @@ class WhatsAppService
             ?: ''
         ));
 
-        $guruWa = trim((string) (
-            ($dbSettings['wa_guru'] ?? null)
+        $filterDummy = function ($val) {
+            $val = trim((string) $val);
+            return ($val === '081234567890') ? '' : $val;
+        };
+
+        $guruPiket = $filterDummy(
+            ($dbSettings['wa_guru_piket'] ?? null)
+            ?: ($saved['guru_piket'] ?? null)
+            ?: $cachedPiket
+            ?: ($dbSettings['wa_guru'] ?? null)
             ?: ($saved['guru_wa'] ?? null)
-            ?: $cachedGuruWa
             ?: config('services.fonnte.guru_wa')
             ?: env('GURU_PIKET_WA')
             ?: env('GURU_WA')
-            ?: env('WA_GURU')
-            ?: env('NO_WA_GURU')
-            ?: env('NOMOR_GURU')
-            ?: env('NOMOR_WA_GURU')
-            ?: env('WA_TARGET_NUMBER')
-            ?: env('WA_TARGET')
-            ?: env('WA_NUMBER')
-            ?: env('NO_WA')
-            ?: env('NOMOR_WA')
             ?: ''
-        ));
+        );
 
-        // Abaikan nomor dummy contoh jika belum diisi user
-        if ($guruWa === '081234567890') {
-            $guruWa = '';
-        }
+        $guruWali = $filterDummy(
+            ($dbSettings['wa_guru_wali'] ?? null)
+            ?: ($saved['guru_wali'] ?? null)
+            ?: $cachedWali
+            ?: env('GURU_WALI_WA')
+            ?: env('WALI_KELAS_WA')
+            ?: ''
+        );
+
+        $guruPengajar = $filterDummy(
+            ($dbSettings['wa_guru_pengajar'] ?? null)
+            ?: ($saved['guru_pengajar'] ?? null)
+            ?: $cachedPengajar
+            ?: env('GURU_PENGAJAR_WA')
+            ?: ''
+        );
+
+        $hasSaved = !empty($dbSettings['wa_guru_piket'] ?? null)
+            || !empty($dbSettings['wa_guru'] ?? null)
+            || !empty($dbSettings['wa_guru_wali'] ?? null)
+            || !empty($dbSettings['wa_guru_pengajar'] ?? null)
+            || !empty($saved['guru_piket'] ?? null)
+            || !empty($saved['guru_wali'] ?? null)
+            || !empty($saved['guru_pengajar'] ?? null)
+            || !empty($cachedPiket);
 
         return [
             'token' => $token,
-            'guru_wa' => $guruWa,
-            'has_saved_file' => !empty($dbSettings['wa_guru'] ?? null) || !empty($saved['guru_wa'] ?? null) || !empty($cachedGuruWa),
+            'guru_piket' => $guruPiket,
+            'guru_wali' => $guruWali,
+            'guru_pengajar' => $guruPengajar,
+            // Kompatibilitas dengan kode yang membaca guru_wa tunggal
+            'guru_wa' => $guruPiket,
+            'has_saved_file' => $hasSaved,
             'saved_at' => $saved['updated_at'] ?? null,
         ];
     }
 
     /**
-     * Simpan konfigurasi token dan no WA guru ke DB permanen, storage file, dan cache
+     * Simpan konfigurasi token dan nomor WA guru (Piket, Wali Kelas, Pengajar) ke DB permanen, storage file, dan cache
      */
-    public static function saveConfig(string $token, string $guruWa): bool
-    {
+    public static function saveConfig(
+        string $token,
+        string $guruPiket = '',
+        string $guruWali = '',
+        string $guruPengajar = ''
+    ): bool {
         try {
             $data = [
                 'token' => trim($token),
-                'guru_wa' => trim($guruWa),
+                'guru_piket' => trim($guruPiket),
+                'guru_wali' => trim($guruWali),
+                'guru_pengajar' => trim($guruPengajar),
+                'guru_wa' => trim($guruPiket),
                 'updated_at' => now()->format('Y-m-d H:i:s'),
             ];
+
             @mkdir(storage_path('app'), 0755, true);
             file_put_contents(storage_path('app/wa_config.json'), json_encode($data, JSON_PRETTY_PRINT));
-            
+
             try {
-                \Illuminate\Support\Facades\Cache::forever('wa_token', trim($token));
-                \Illuminate\Support\Facades\Cache::forever('wa_guru', trim($guruWa));
+                Cache::forever('wa_token', trim($token));
+                Cache::forever('wa_guru_piket', trim($guruPiket));
+                Cache::forever('wa_guru_wali', trim($guruWali));
+                Cache::forever('wa_guru_pengajar', trim($guruPengajar));
+                Cache::forever('wa_guru', trim($guruPiket));
             } catch (\Throwable $e) {}
 
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('app_settings')) {
-                    \Illuminate\Support\Facades\DB::table('app_settings')->updateOrInsert(
+                if (Schema::hasTable('app_settings')) {
+                    DB::table('app_settings')->updateOrInsert(
                         ['key' => 'wa_token'],
                         ['value' => trim($token), 'updated_at' => now()]
                     );
-                    \Illuminate\Support\Facades\DB::table('app_settings')->updateOrInsert(
+                    DB::table('app_settings')->updateOrInsert(
+                        ['key' => 'wa_guru_piket'],
+                        ['value' => trim($guruPiket), 'updated_at' => now()]
+                    );
+                    DB::table('app_settings')->updateOrInsert(
+                        ['key' => 'wa_guru_wali'],
+                        ['value' => trim($guruWali), 'updated_at' => now()]
+                    );
+                    DB::table('app_settings')->updateOrInsert(
+                        ['key' => 'wa_guru_pengajar'],
+                        ['value' => trim($guruPengajar), 'updated_at' => now()]
+                    );
+                    DB::table('app_settings')->updateOrInsert(
                         ['key' => 'wa_guru'],
-                        ['value' => trim($guruWa), 'updated_at' => now()]
+                        ['value' => trim($guruPiket), 'updated_at' => now()]
                     );
                 }
             } catch (\Throwable $e) {
                 Log::warning("Gagal simpan ke DB app_settings: " . $e->getMessage());
             }
 
-            Log::info("wa_config berhasil disimpan (DB + file + cache): " . $data['guru_wa']);
+            Log::info("wa_config berhasil disimpan untuk Guru Piket [{$guruPiket}], Wali [{$guruWali}], Pengajar [{$guruPengajar}]");
             return true;
         } catch (\Throwable $e) {
             Log::error("Gagal simpan wa_config: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Dapatkan daftar seluruh nomor guru yang aktif dikonfigurasi
+     */
+    public static function getActiveRecipients(): array
+    {
+        $cfg = self::getConfig();
+        $list = [];
+
+        if (!empty($cfg['guru_piket'])) {
+            $list[] = [
+                'role' => 'Guru Piket',
+                'number' => self::formatNomor($cfg['guru_piket']),
+                'raw_number' => $cfg['guru_piket'],
+            ];
+        }
+
+        if (!empty($cfg['guru_wali'])) {
+            $list[] = [
+                'role' => 'Wali Kelas',
+                'number' => self::formatNomor($cfg['guru_wali']),
+                'raw_number' => $cfg['guru_wali'],
+            ];
+        }
+
+        if (!empty($cfg['guru_pengajar'])) {
+            $list[] = [
+                'role' => 'Guru Pengajar',
+                'number' => self::formatNomor($cfg['guru_pengajar']),
+                'raw_number' => $cfg['guru_pengajar'],
+            ];
+        }
+
+        return $list;
     }
 
     /**
@@ -160,7 +249,6 @@ class WhatsAppService
                 'pengajuan_id' => $pengajuanId,
             ]);
 
-            // Simpan maksimal 30 log terakhir
             $logs = array_slice($logs, 0, 30);
             @mkdir(storage_path('app'), 0755, true);
             file_put_contents($filePath, json_encode($logs, JSON_PRETTY_PRINT));
@@ -205,29 +293,29 @@ class WhatsAppService
     }
 
     /**
-     * Kirim notifikasi WhatsApp otomatis ke guru piket saat ada pengajuan baru.
+     * Kirim notifikasi WhatsApp otomatis ke seluruh guru (Piket, Wali Kelas, Guru Pengajar)
+     * saat pengajuan surat izin dan foto verifikasi wajah selesai diunggah.
      */
     public static function kirimNotifikasiPengajuanBaru(PengajuanIzin $pengajuan, bool $sudahAdaFoto = false): array
     {
         $cfg = self::getConfig();
         $token = $cfg['token'];
-        $rawTarget = $cfg['guru_wa'];
 
         if (empty($token)) {
             $res = ['status' => false, 'reason' => 'FONNTE_TOKEN belum diatur (isi di Railway atau simpan via /test-wa)'];
             Log::warning("WhatsApp Bot: " . $res['reason']);
-            self::logDispatch('Pengajuan Baru (Form)', '-', $res, $pengajuan->id);
+            self::logDispatch('Pengajuan Baru', '-', $res, $pengajuan->id);
             return $res;
         }
 
-        if (empty($rawTarget)) {
-            $res = ['status' => false, 'reason' => 'GURU_PIKET_WA belum diatur (isi di Railway atau simpan via /test-wa)'];
+        $recipients = self::getActiveRecipients();
+        if (empty($recipients)) {
+            $res = ['status' => false, 'reason' => 'Nomor WhatsApp guru belum diatur (isi Guru Piket/Wali Kelas di /test-wa)'];
             Log::warning("WhatsApp Bot: " . $res['reason']);
-            self::logDispatch('Pengajuan Baru (Form)', '-', $res, $pengajuan->id);
+            self::logDispatch('Pengajuan Baru', '-', $res, $pengajuan->id);
             return $res;
         }
 
-        $target = self::formatNomor($rawTarget);
         $appUrl = self::getAppUrl();
         $urlReview = $appUrl . '/guru/detail/' . $pengajuan->id;
 
@@ -235,118 +323,85 @@ class WhatsAppService
         $siswa = $pengajuan->siswa;
         $namaSiswa = $siswa ? ($siswa->nama ?? 'Siswa') : 'Siswa';
         $kelas = $siswa ? trim(($siswa->kelas ?? '') . ' ' . ($siswa->jurusan ?? '')) : '-';
-        
+
         $waktuMulai = !empty($pengajuan->waktu_mulai) ? substr((string) $pengajuan->waktu_mulai, 0, 5) : '-';
         $waktuSelesai = !empty($pengajuan->waktu_selesai) ? substr((string) $pengajuan->waktu_selesai, 0, 5) : '-';
         $durasi = $pengajuan->durasi_menit ?? 0;
         $waktu = "{$waktuMulai} s/d {$waktuSelesai} WIB ({$durasi} menit)";
 
         try {
-            $tanggal = !empty($pengajuan->tanggal_izin) 
-                ? \Carbon\Carbon::parse($pengajuan->tanggal_izin)->format('d/m/Y') 
+            $tanggal = !empty($pengajuan->tanggal_izin)
+                ? \Carbon\Carbon::parse($pengajuan->tanggal_izin)->format('d/m/Y')
                 : date('d/m/Y');
         } catch (\Throwable $e) {
             $tanggal = date('d/m/Y');
         }
 
-        $statusFoto = $sudahAdaFoto 
-            ? "Foto selfie verifikasi wajah telah diunggah & siap ditinjau." 
+        $statusFoto = $sudahAdaFoto
+            ? "Foto selfie verifikasi wajah telah diunggah & siap ditinjau."
             : "Siswa sedang diarahkan mengambil foto selfie.";
 
-        $pesan = "*NOTIFIKASI PENGAJUAN DISPENSASI BARU*\n";
+        $pesan = "*NOTIFIKASI PENGAJUAN DISPENSASI SISWA*\n";
         $pesan .= "SMK Negeri 1 Jakarta\n\n";
-        $pesan .= "Halo Bapak/Ibu Guru Piket, ada surat permohonan izin baru masuk:\n\n";
+        $pesan .= "Halo Bapak/Ibu Guru, ada surat permohonan dispensasi siswa baru:\n\n";
         $pesan .= "• *Nama Siswa:* " . $namaSiswa . "\n";
         $pesan .= "• *Kelas / Jurusan:* " . $kelas . "\n";
         $pesan .= "• *Tanggal:* " . $tanggal . "\n";
         $pesan .= "• *Waktu:* " . $waktu . "\n";
         $pesan .= "• *Alasan Izin:*\n\"" . ($pengajuan->alasan_izin ?? '-') . "\"\n\n";
         $pesan .= "• *Status Foto:* " . $statusFoto . "\n\n";
-        $pesan .= "Silakan klik tautan di bawah ini untuk melihat foto & memproses ACC / Tolak:\n";
+        $pesan .= "Silakan klik tautan di bawah ini untuk melihat foto & memproses persetujuan:\n";
         $pesan .= $urlReview . "\n\n";
         $pesan .= "_Pesan otomatis Sistem Dispensasi Digital SMKN 1_";
 
-        $res = self::kirimPesan($target, $pesan, $token);
-        self::logDispatch($sudahAdaFoto ? 'Pengajuan + Foto Selesai' : 'Pengajuan Form', $target, $res, $pengajuan->id);
-        Log::info("WhatsApp Bot pengajuan baru #{$pengajuan->id} dikirim ke {$target}: " . json_encode($res));
-        return $res;
-    }
+        $successRoles = [];
+        $failedRoles = [];
+        $allResults = [];
 
-    /**
-     * Kirim notifikasi foto verifikasi wajah berhasil diupload
-     */
-    public static function kirimNotifikasiFotoDiunggah(PengajuanIzin $pengajuan): array
-    {
-        $cfg = self::getConfig();
-        $token = $cfg['token'];
-        $rawTarget = $cfg['guru_wa'];
+        foreach ($recipients as $item) {
+            $res = self::kirimPesan($item['number'], $pesan, $token);
+            $allResults[$item['role']] = $res;
+            self::logDispatch("Pengajuan ({$item['role']})", $item['number'], $res, $pengajuan->id);
 
-        if (empty($token) || empty($rawTarget)) {
-            $res = ['status' => false, 'reason' => 'Konfigurasi WA belum lengkap'];
-            self::logDispatch('Foto Verifikasi', '-', $res, $pengajuan->id);
-            return $res;
+            if (($res['status'] ?? false) === true) {
+                $successRoles[] = "{$item['role']} ({$item['raw_number']})";
+            } else {
+                $failedRoles[] = "{$item['role']} (" . ($res['reason'] ?? 'Gagal') . ")";
+            }
         }
 
-        $target = self::formatNomor($rawTarget);
-        $appUrl = self::getAppUrl();
-        $urlReview = $appUrl . '/guru/detail/' . $pengajuan->id;
+        $isSuccess = !empty($successRoles);
+        $recipientsStr = implode(', ', $successRoles);
 
-        $pengajuan->loadMissing('siswa');
-        $namaSiswa = $pengajuan->siswa ? ($pengajuan->siswa->nama ?? 'Siswa') : 'Siswa';
-        $kelas = $pengajuan->siswa ? trim(($pengajuan->siswa->kelas ?? '') . ' ' . ($pengajuan->siswa->jurusan ?? '')) : '-';
+        if ($isSuccess) {
+            try {
+                $pengajuan->update([
+                    'wa_sent' => true,
+                    'wa_sent_at' => now(),
+                    'wa_recipients' => $recipientsStr,
+                ]);
 
-        $pesan = "*FOTO VERIFIKASI SELESAI DIUNGGAH*\n";
-        $pesan .= "SMK Negeri 1 Jakarta\n\n";
-        $pesan .= "Siswa *{$namaSiswa}* ({$kelas}) telah menyelesaikan verifikasi wajah selfie untuk pengajuan izinnya.\n\n";
-        $pesan .= "Foto verifikasi telah tersimpan dan siap ditinjau.\n\n";
-        $pesan .= "Silakan periksa foto & ACC surat izin di sini:\n";
-        $pesan .= $urlReview . "\n\n";
-        $pesan .= "_Sistem Dispensasi Digital SMKN 1_";
-
-        $res = self::kirimPesan($target, $pesan, $token);
-        self::logDispatch('Foto Verifikasi', $target, $res, $pengajuan->id);
-        Log::info("WhatsApp Bot update foto pengajuan #{$pengajuan->id} dikirim ke {$target}: " . json_encode($res));
-        return $res;
-    }
-
-    /**
-     * Kirim notifikasi status (ACC / Tolak) ke siswa jika siswa punya nomor WA.
-     */
-    public static function kirimNotifikasiStatus(PengajuanIzin $pengajuan): array
-    {
-        $cfg = self::getConfig();
-        $token = $cfg['token'];
-        if (empty($token)) {
-            return ['status' => false, 'reason' => 'FONNTE_TOKEN kosong'];
+                ActivityLog::catat(
+                    auth()->id() ?? ($siswa ? $siswa->user_id : null),
+                    $pengajuan->id,
+                    'notifikasi_wa',
+                    "Notifikasi WhatsApp otomatis terkirim ke: {$recipientsStr}"
+                );
+            } catch (\Throwable $e) {
+                Log::warning("Gagal update wa_sent pada pengajuan: " . $e->getMessage());
+            }
         }
 
-        $target = $pengajuan->siswa?->nomor_identitas ?? null;
-        if (empty($target)) {
-            return ['status' => false, 'reason' => 'Nomor HP siswa tidak terdaftar'];
-        }
-
-        $target = self::formatNomor($target);
-        $statusText = $pengajuan->status === 'disetujui' ? 'DISETUJUI' : 'DITOLAK';
-
-        $appUrl = self::getAppUrl();
-        $urlDetail = $appUrl . '/siswa/detail/' . $pengajuan->id;
-
-        $pesan = "*STATUS PENGAJUAN DISPENSASI*\n\n";
-        $pesan .= "Halo *" . ($pengajuan->siswa->nama ?? 'Siswa') . "*,\n";
-        $pesan .= "Pengajuan dispensasi kamu telah *" . $statusText . "* oleh guru piket.\n\n";
-
-        if ($pengajuan->status === 'disetujui' && $pengajuan->suratIzin) {
-            $pesan .= "• *Nomor Surat:* " . $pengajuan->suratIzin->nomor_surat . "\n";
-            $pesan .= "• *Kode Verifikasi:* " . $pengajuan->suratIzin->kode_verifikasi . "\n";
-        }
-        if ($pengajuan->catatan_guru) {
-            $pesan .= "• *Catatan Guru:* " . $pengajuan->catatan_guru . "\n";
-        }
-        $pesan .= "\nBuka detail surat di:\n" . $urlDetail;
-
-        $res = self::kirimPesan($target, $pesan, $token);
-        self::logDispatch('Status Siswa (' . $statusText . ')', $target, $res, $pengajuan->id);
-        return $res;
+        return [
+            'status' => $isSuccess,
+            'sent_count' => count($successRoles),
+            'total_targets' => count($recipients),
+            'recipients' => $recipientsStr,
+            'reason' => $isSuccess
+                ? ('Terkirim ke ' . count($successRoles) . ' nomor guru: ' . $recipientsStr)
+                : ('Gagal kirim: ' . implode('; ', $failedRoles)),
+            'details' => $allResults,
+        ];
     }
 
     /**
@@ -356,31 +411,53 @@ class WhatsAppService
     {
         $cfg = self::getConfig();
         $token = trim((string) ($token ?: $cfg['token']));
-        $target = trim((string) ($target ?: $cfg['guru_wa']));
 
         if (empty($token)) {
             $res = ['status' => false, 'reason' => 'Token kosong. Silakan isi Token Fonnte.'];
             self::logDispatch('Uji Coba Test-WA', '-', $res);
             return $res;
         }
-        if (empty($target)) {
-            $res = ['status' => false, 'reason' => 'Nomor tujuan kosong. Silakan isi Nomor WhatsApp.'];
+
+        // Jika target tunggal diberikan secara manual
+        if (!empty($target)) {
+            $formattedTarget = self::formatNomor($target);
+            $pesan = "*TES KONEKSI BOT WHATSAPP BERHASIL*\n\nSistem Dispensasi SMKN 1 berhasil terhubung dengan akun WhatsApp Anda via Fonnte Gateway.\n\nWaktu tes: " . now()->format('d M Y, H:i:s') . " WIB.";
+            $res = self::kirimPesan($formattedTarget, $pesan, $token);
+            self::logDispatch('Uji Coba Test-WA', $formattedTarget, $res);
+            return $res;
+        }
+
+        // Tes ke seluruh nomor guru yang aktif terdaftar
+        $recipients = self::getActiveRecipients();
+        if (empty($recipients)) {
+            $res = ['status' => false, 'reason' => 'Belum ada nomor WhatsApp guru yang diisi.'];
             self::logDispatch('Uji Coba Test-WA', '-', $res);
             return $res;
         }
 
-        $formattedTarget = self::formatNomor($target);
-        $pesan = "*TES KONEKSI BOT WHATSAPP BERHASIL*\n\nSistem Dispensasi SMKN 1 berhasil terhubung dengan akun WhatsApp Anda via Fonnte Gateway.\n\nWaktu tes: " . now()->format('d M Y, H:i:s') . " WIB.";
+        $successRoles = [];
+        $failedRoles = [];
+        foreach ($recipients as $item) {
+            $pesan = "*TES KONEKSI BOT WHATSAPP ({$item['role']})*\n\nSistem Dispensasi SMKN 1 berhasil terhubung dengan nomor WhatsApp Anda via Fonnte Gateway.\n\nWaktu tes: " . now()->format('d M Y, H:i:s') . " WIB.";
+            $res = self::kirimPesan($item['number'], $pesan, $token);
+            self::logDispatch("Uji Coba ({$item['role']})", $item['number'], $res);
 
-        $res = self::kirimPesan($formattedTarget, $pesan, $token);
-
-        // Jika berhasil, otomatis simpan konfigurasi ini ke file storage permanen
-        if (($res['status'] ?? false) === true) {
-            self::saveConfig($token, $formattedTarget);
+            if (($res['status'] ?? false) === true) {
+                $successRoles[] = "{$item['role']} ({$item['raw_number']})";
+            } else {
+                $failedRoles[] = "{$item['role']} (" . ($res['reason'] ?? 'Gagal') . ")";
+            }
         }
 
-        self::logDispatch('Uji Coba Test-WA', $formattedTarget, $res);
-        return $res;
+        $isSuccess = !empty($successRoles);
+        return [
+            'status' => $isSuccess,
+            'sent_count' => count($successRoles),
+            'recipients' => implode(', ', $successRoles),
+            'reason' => $isSuccess
+                ? ('Pesan tes berhasil terkirim ke ' . count($successRoles) . ' nomor: ' . implode(', ', $successRoles))
+                : ('Gagal kirim: ' . implode('; ', $failedRoles)),
+        ];
     }
 
     /**
@@ -398,7 +475,6 @@ class WhatsAppService
         $target = self::formatNomor($target);
 
         try {
-            // Fonnte API membutuhkan Form-Data (asForm), bukan raw JSON!
             $response = Http::asForm()->timeout(15)->withHeaders([
                 'Authorization' => $token,
             ])->post('https://api.fonnte.com/send', [

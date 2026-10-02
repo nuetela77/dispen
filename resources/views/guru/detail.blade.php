@@ -48,6 +48,17 @@
                         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:6px;">Alasan Izin</div>
                         <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:8px;font-size:14px;line-height:1.6;">{{ $pengajuan->alasan_izin }}</div>
                     </div>
+                    @if($pengajuan->wa_sent)
+                    <div class="col-12">
+                        <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px 14px;border-radius:8px;display:flex;align-items:center;gap:10px;font-size:12.5px;color:#166534;">
+                            <i class="bi bi-whatsapp fs-5 text-success"></i>
+                            <div>
+                                <strong>Notifikasi WhatsApp Terkirim:</strong>
+                                <span>{{ $pengajuan->wa_recipients }} ({{ $pengajuan->wa_sent_at?->format('d M Y, H:i') }} WIB)</span>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>

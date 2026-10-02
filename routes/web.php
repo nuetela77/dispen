@@ -66,18 +66,20 @@ Route::match(['get', 'post'], '/test-wa', function (\Illuminate\Http\Request $re
 
     if ($request->isMethod('post')) {
         $tokenInput = trim((string) $request->input('token', ''));
-        $targetInput = trim((string) $request->input('target', ''));
+        $piketInput = trim((string) ($request->input('guru_piket') ?: $request->input('target', '')));
+        $waliInput = trim((string) $request->input('guru_wali', ''));
+        $pengajarInput = trim((string) $request->input('guru_pengajar', ''));
 
         if ($action === 'save') {
-            if (empty($targetInput)) {
-                $result = ['status' => false, 'reason' => 'Nomor WhatsApp Guru wajib diisi untuk disimpan.'];
+            if (empty($piketInput) && empty($waliInput) && empty($pengajarInput)) {
+                $result = ['status' => false, 'reason' => 'Minimal isi 1 nomor WhatsApp guru (Guru Piket, Wali Kelas, atau Pengajar) untuk disimpan.'];
             } else {
-                \App\Services\WhatsAppService::saveConfig($tokenInput, $targetInput);
-                return redirect()->route('test-wa')->with('success_save', 'Konfigurasi Token Fonnte & Nomor Guru Piket (' . $targetInput . ') berhasil disimpan permanen di server!');
+                \App\Services\WhatsAppService::saveConfig($tokenInput, $piketInput, $waliInput, $pengajarInput);
+                return redirect()->route('test-wa')->with('success_save', 'Konfigurasi Token Fonnte & Nomor Guru (Piket, Wali Kelas, Pengajar) berhasil disimpan permanen di database server!');
             }
         } elseif ($action === 'test_pengajuan') {
-            if (!empty($tokenInput) && !empty($targetInput)) {
-                \App\Services\WhatsAppService::saveConfig($tokenInput, $targetInput);
+            if (!empty($tokenInput) && (!empty($piketInput) || !empty($waliInput) || !empty($pengajarInput))) {
+                \App\Services\WhatsAppService::saveConfig($tokenInput, $piketInput, $waliInput, $pengajarInput);
             }
             $pengajuan = \App\Models\PengajuanIzin::latest()->first();
             if ($pengajuan) {
@@ -87,20 +89,19 @@ Route::match(['get', 'post'], '/test-wa', function (\Illuminate\Http\Request $re
             }
         } else {
             // Action test kirim pesan koneksi
-            if (!empty($tokenInput) && !empty($targetInput)) {
-                \App\Services\WhatsAppService::saveConfig($tokenInput, $targetInput);
+            if (!empty($tokenInput) && (!empty($piketInput) || !empty($waliInput) || !empty($pengajarInput))) {
+                \App\Services\WhatsAppService::saveConfig($tokenInput, $piketInput, $waliInput, $pengajarInput);
             }
-            $result = \App\Services\WhatsAppService::testKirim($targetInput, $tokenInput);
+            $result = \App\Services\WhatsAppService::testKirim(null, $tokenInput);
         }
     }
 
     $config = \App\Services\WhatsAppService::getConfig();
-    $target = $request->input('target', $config['guru_wa']);
-    if ($target === '081234567890') {
-        $target = '';
-    }
+    $guruPiket = $request->input('guru_piket', $config['guru_piket']);
+    $guruWali = $request->input('guru_wali', $config['guru_wali']);
+    $guruPengajar = $request->input('guru_pengajar', $config['guru_pengajar']);
     $token = $request->input('token', $config['token']);
     $logs = \App\Services\WhatsAppService::getLogs();
 
-    return view('test-wa', compact('result', 'target', 'token', 'config', 'logs'));
+    return view('test-wa', compact('result', 'guruPiket', 'guruWali', 'guruPengajar', 'token', 'config', 'logs'));
 })->name('test-wa');

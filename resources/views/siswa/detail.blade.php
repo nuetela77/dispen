@@ -25,6 +25,33 @@
         </div>
     </div>
 
+    {{-- Indikator Status Notifikasi WhatsApp --}}
+    @if($pengajuan->wa_sent)
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#22c55e;color:white;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">
+            <i class="bi bi-whatsapp"></i>
+        </div>
+        <div style="flex:1;">
+            <div style="font-weight:600;font-size:13.5px;color:#15803d;"><i class="bi bi-check-circle-fill me-1"></i> Notifikasi WhatsApp Berhasil Terkirim ke Guru</div>
+            <div style="font-size:12px;color:#475569;margin-top:2px;">
+                Terkirim ke: <strong>{{ $pengajuan->wa_recipients ?: 'Guru' }}</strong> &bull; {{ $pengajuan->wa_sent_at?->format('d M Y, H:i') }} WIB
+            </div>
+        </div>
+    </div>
+    @elseif($pengajuan->verifikasiWajah)
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#f59e0b;color:white;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">
+            <i class="bi bi-whatsapp"></i>
+        </div>
+        <div style="flex:1;">
+            <div style="font-weight:600;font-size:13.5px;color:#b45309;"><i class="bi bi-hourglass-split me-1"></i> Notifikasi WhatsApp Dalam Proses Pengiriman</div>
+            <div style="font-size:12px;color:#78350f;margin-top:2px;">
+                Foto verifikasi wajah telah berhasil diunggah dan pesan bot sedang diarahkan ke nomor guru yang terdaftar.
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- Info Izin --}}
     <div class="card mb-3">
         <div class="card-header-clean"><h6>Informasi Pengajuan</h6></div>

@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; color: #1e293b; padding: 30px 15px; }
-        .card-main { max-width: 760px; margin: 0 auto; background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); overflow: hidden; }
+        .card-main { max-width: 780px; margin: 0 auto; background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); overflow: hidden; }
         .card-header-wa { background: linear-gradient(135deg, #075e54, #128c7e); color: white; padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; }
         .stat-badge { font-size: 11px; padding: 4px 8px; border-radius: 6px; font-weight: 600; }
         .table-logs { font-size: 12px; }
@@ -22,7 +22,7 @@
     <div class="card-header-wa">
         <div>
             <h5 class="mb-0 fw-bold"><i class="bi bi-whatsapp me-2"></i> Pengaturan & Diagnostik Bot WhatsApp</h5>
-            <small style="opacity: 0.9;">Integrasi Notifikasi Otomatis Guru Piket via Fonnte Gateway</small>
+            <small style="opacity: 0.9;">Notifikasi Otomatis Guru Piket, Wali Kelas, dan Guru Pengajar via Fonnte Gateway</small>
         </div>
         <a href="/" class="btn btn-sm btn-light fw-semibold" style="font-size: 12.5px;"><i class="bi bi-house me-1"></i> Beranda</a>
     </div>
@@ -50,11 +50,27 @@
                 @endif
             </div>
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted"><i class="bi bi-telephone me-1"></i> Nomor WhatsApp Guru Piket:</span>
-                @if(!empty($config['guru_wa']))
-                    <span class="fw-bold text-dark fs-6">{{ $config['guru_wa'] }}</span>
+                <span class="text-muted"><i class="bi bi-person-badge me-1"></i> Guru Piket (Utama / ACC):</span>
+                @if(!empty($config['guru_piket']))
+                    <span class="fw-bold text-dark fs-6">{{ $config['guru_piket'] }}</span>
                 @else
                     <span class="stat-badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i> Belum Diatur</span>
+                @endif
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted"><i class="bi bi-person-heart me-1"></i> Wali Kelas (Tembusan):</span>
+                @if(!empty($config['guru_wali']))
+                    <span class="fw-bold text-dark fs-6">{{ $config['guru_wali'] }}</span>
+                @else
+                    <span class="text-muted" style="font-size: 12px;">(Opsional - Belum Diisi)</span>
+                @endif
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted"><i class="bi bi-mortarboard me-1"></i> Guru Pengajar (Tembusan):</span>
+                @if(!empty($config['guru_pengajar']))
+                    <span class="fw-bold text-dark fs-6">{{ $config['guru_pengajar'] }}</span>
+                @else
+                    <span class="text-muted" style="font-size: 12px;">(Opsional - Belum Diisi)</span>
                 @endif
             </div>
             <div class="d-flex justify-content-between align-items-center pt-2" style="border-top: 1px dashed #cbd5e1; font-size: 11.5px;">
@@ -74,9 +90,9 @@
                 <i class="bi bi-check-circle-fill fs-5 mt-1 text-success"></i>
                 <div style="flex: 1;">
                     <strong>Pesan Berhasil Terkirim ke WhatsApp Guru! 🎉</strong>
-                    <div style="font-size: 13px;" class="mt-1">Pesan telah berhasil dikirim ke nomor <strong>{{ $target }}</strong>. Nomor ini juga otomatis disimpan sebagai nomor aktif guru piket di server!</div>
-                    @if(isset($result['raw']))
-                    <pre class="mt-2 p-2 bg-white rounded border" style="font-size: 11px; max-height: 110px; overflow-y: auto;">{{ is_array($result['raw']) ? json_encode($result['raw'], JSON_PRETTY_PRINT) : $result['raw'] }}</pre>
+                    <div style="font-size: 13px;" class="mt-1">{{ $result['reason'] ?? 'Notifikasi berhasil dikirim.' }}</div>
+                    @if(isset($result['details']))
+                    <pre class="mt-2 p-2 bg-white rounded border" style="font-size: 11px; max-height: 110px; overflow-y: auto;">{{ json_encode($result['details'], JSON_PRETTY_PRINT) }}</pre>
                     @endif
                 </div>
             </div>
@@ -87,8 +103,8 @@
                     <strong>Pengiriman Gagal!</strong>
                     <div style="font-size: 13px;" class="mt-1">Respon / Alasan dari server:</div>
                     <div class="p-2 bg-white rounded border text-danger mt-1 fw-bold" style="font-size: 13px;">{{ $result['reason'] ?? 'Gagal menghubungi Fonnte' }}</div>
-                    @if(isset($result['raw']))
-                    <pre class="mt-2 p-2 bg-white rounded border text-muted" style="font-size: 11px; max-height: 110px; overflow-y: auto;">{{ is_array($result['raw']) ? json_encode($result['raw'], JSON_PRETTY_PRINT) : $result['raw'] }}</pre>
+                    @if(isset($result['details']))
+                    <pre class="mt-2 p-2 bg-white rounded border text-muted" style="font-size: 11px; max-height: 110px; overflow-y: auto;">{{ json_encode($result['details'], JSON_PRETTY_PRINT) }}</pre>
                     @endif
                 </div>
             </div>
@@ -98,17 +114,44 @@
         {{-- Form Pengaturan & Pengujian --}}
         <form method="POST" action="{{ route('test-wa') }}" id="form-wa">
             @csrf
+
             <div class="mb-3">
-                <label class="form-label fw-bold" style="font-size: 13px;">Nomor WhatsApp Guru Piket Penerima Notifikasi:</label>
+                <label class="form-label fw-bold" style="font-size: 13px;">
+                    <i class="bi bi-person-badge text-primary me-1"></i> Nomor WhatsApp Guru Piket (Utama / ACC):
+                </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-phone"></i></span>
-                    <input type="text" name="target" class="form-control" placeholder="Contoh: 081234567890" value="{{ old('target', $target) }}" required>
+                    <input type="text" name="guru_piket" class="form-control" placeholder="Contoh: 081234567890" value="{{ old('guru_piket', $guruPiket) }}">
                 </div>
-                <small class="text-muted" style="font-size: 11.5px;">Nomor HP guru yang akan menerima pesan otomatis saat siswa mengajukan dispensasi.</small>
+                <small class="text-muted" style="font-size: 11.5px;">Nomor HP Guru Piket yang berwenang meninjau foto dan menyetujui surat izin.</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold" style="font-size: 13px;">
+                    <i class="bi bi-person-heart text-success me-1"></i> Nomor WhatsApp Guru Wali Kelas (Tembusan):
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                    <input type="text" name="guru_wali" class="form-control" placeholder="Contoh: 081298765432 (opsional)" value="{{ old('guru_wali', $guruWali) }}">
+                </div>
+                <small class="text-muted" style="font-size: 11.5px;">Nomor HP Wali Kelas yang juga akan menerima notifikasi setiap ada siswanya izin.</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold" style="font-size: 13px;">
+                    <i class="bi bi-mortarboard text-info me-1"></i> Nomor WhatsApp Guru Pengajar (Tembusan):
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                    <input type="text" name="guru_pengajar" class="form-control" placeholder="Contoh: 081311223344 (opsional)" value="{{ old('guru_pengajar', $guruPengajar) }}">
+                </div>
+                <small class="text-muted" style="font-size: 11.5px;">Nomor HP Guru Mata Pelajaran yang sedang mengajar di kelas.</small>
             </div>
 
             <div class="mb-4">
-                <label class="form-label fw-bold" style="font-size: 13px;">Token Fonnte:</label>
+                <label class="form-label fw-bold" style="font-size: 13px;">
+                    <i class="bi bi-key text-warning me-1"></i> Token Fonnte:
+                </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-key"></i></span>
                     <input type="text" name="token" class="form-control" placeholder="Masukkan token perangkat dari Fonnte..." value="{{ old('token', $token) }}">
@@ -184,13 +227,13 @@
 
         <hr class="my-4">
 
-        {{-- Panduan Singkat --}}
+        {{-- Petunjuk Penggunaan --}}
         <div style="font-size: 12px; color: #64748b;">
-            <div class="fw-bold text-dark mb-1"><i class="bi bi-info-circle me-1"></i> Panduan Pemecahan Masalah:</div>
+            <div class="fw-bold text-dark mb-1"><i class="bi bi-info-circle me-1"></i> Cara Kerja Notifikasi WhatsApp Multi-Guru:</div>
             <ul class="ps-3 mb-0">
-                <li><strong>Nomor Belum Tersimpan:</strong> Cukup masukkan nomor guru di atas lalu klik tombol <b>"Simpan Permanen"</b>. Nomor ini akan otomatis digunakan oleh seluruh surat izin siswa.</li>
-                <li><strong>"device disconnected"</strong>: WhatsApp di dashboard Fonnte belum tersambung. Buka <a href="https://fonnte.com" target="_blank">fonnte.com</a> ➔ Device ➔ Scan QR.</li>
-                <li><strong>"invalid token"</strong>: Token salah. Salin ulang token dari menu Device di Fonnte.</li>
+                <li><strong>Multi-Penerima Otomatis:</strong> Masukkan nomor Guru Piket, Wali Kelas, dan/atau Guru Pengajar. Saat siswa mengajukan izin dan mengirim foto selfie, bot otomatis mengirim pesan ke seluruh nomor yang terdaftar di atas.</li>
+                <li><strong>Penyimpanan Permanen:</strong> Klik <b>"Simpan Permanen"</b> agar konfigurasi tersimpan aman di database server tanpa hilang saat server restart.</li>
+                <li><strong>Cukup Isi Nomor yang Tersedia:</strong> Jika hanya memiliki 1 atau 2 nomor (misal Guru Piket & Wali Kelas saja), nomor lainnya boleh dikosongkan.</li>
             </ul>
         </div>
     </div>
