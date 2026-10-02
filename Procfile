@@ -1,1 +1,1 @@
-web: (php artisan key:generate --force || true) && (php artisan migrate --force || true) && (php artisan db:seed --force || true) && php artisan storage:link && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
+web: sh -c "if [ -z \"$APP_KEY\" ]; then php artisan key:generate --force; fi && php artisan storage:link && (php artisan migrate --force || true) && (php artisan db:seed --force || true) && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"
