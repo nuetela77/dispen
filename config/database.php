@@ -46,12 +46,12 @@ return [
 
         'mysql' => [
             'driver' => 'mysql',
-            'url' => env('DATABASE_URL', env('MYSQL_URL', env('DB_URL'))),
-            'host' => env('MYSQLHOST') ?: env('DB_HOST', '127.0.0.1'),
-            'port' => env('MYSQLPORT') ?: env('DB_PORT', '3306'),
-            'database' => env('MYSQLDATABASE') ?: env('DB_DATABASE', 'dispensasi_sekolah'),
-            'username' => env('MYSQLUSER') ?: env('DB_USERNAME', 'root'),
-            'password' => env('MYSQLPASSWORD') !== null ? env('MYSQLPASSWORD') : env('DB_PASSWORD', ''),
+            'url' => env('DATABASE_URL', env('MYSQL_URL', env('MYSQL_PRIVATE_URL', env('DATABASE_PRIVATE_URL', env('MYSQL_PUBLIC_URL', env('DB_URL'))))),
+            'host' => env('MYSQLHOST') ?: (env('MYSQL_HOST') ?: env('DB_HOST', '127.0.0.1')),
+            'port' => env('MYSQLPORT') ?: (env('MYSQL_PORT') ?: env('DB_PORT', '3306')),
+            'database' => env('MYSQLDATABASE') ?: (env('MYSQL_DATABASE') ?: env('DB_DATABASE', 'dispensasi_sekolah')),
+            'username' => env('MYSQLUSER') ?: (env('MYSQL_USER') ?: env('DB_USERNAME', 'root')),
+            'password' => env('MYSQLPASSWORD') !== null ? env('MYSQLPASSWORD') : (env('MYSQL_PASSWORD') !== null ? env('MYSQL_PASSWORD') : env('DB_PASSWORD', '')),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
