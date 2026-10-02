@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo_mysql \
+        pdo_sqlite \
         mbstring \
         pcntl \
         bcmath \
@@ -42,7 +43,8 @@ RUN mkdir -p storage/app/public/verifikasi \
              storage/framework/sessions \
              storage/framework/views \
              storage/logs \
-    && chmod -R 777 storage bootstrap/cache
+    && touch database/database.sqlite \
+    && chmod -R 777 storage bootstrap/cache database
 
 EXPOSE 8080
 

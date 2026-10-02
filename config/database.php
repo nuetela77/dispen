@@ -17,7 +17,19 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'mysql'),
+    'default' => (function () {
+        if (env('MYSQLHOST') || env('MYSQL_URL') || env('DATABASE_URL') || env('MYSQL_PRIVATE_URL')) {
+            return 'mysql';
+        }
+        $dbHost = env('DB_HOST');
+        if ($dbHost && $dbHost !== '127.0.0.1' && $dbHost !== 'localhost') {
+            return 'mysql';
+        }
+        if (env('APP_ENV') === 'local') {
+            return env('DB_CONNECTION', 'mysql');
+        }
+        return 'sqlite';
+    })(),
 
     /*
     |--------------------------------------------------------------------------
@@ -35,7 +47,7 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'database' => database_path('database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,
@@ -46,7 +58,7 @@ return [
 
         'mysql' => [
             'driver' => 'mysql',
-            'url' => env('DATABASE_URL', env('MYSQL_URL', env('MYSQL_PRIVATE_URL', env('DATABASE_PRIVATE_URL', env('MYSQL_PUBLIC_URL', env('DB_URL'))))),
+            'url' => env('DATABASE_URL') ?: (env('MYSQL_URL') ?: (env('MYSQL_PRIVATE_URL') ?: env('DB_URL'))),
             'host' => env('MYSQLHOST') ?: (env('MYSQL_HOST') ?: env('DB_HOST', '127.0.0.1')),
             'port' => env('MYSQLPORT') ?: (env('MYSQL_PORT') ?: env('DB_PORT', '3306')),
             'database' => env('MYSQLDATABASE') ?: (env('MYSQL_DATABASE') ?: env('DB_DATABASE', 'dispensasi_sekolah')),
