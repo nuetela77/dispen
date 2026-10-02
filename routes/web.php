@@ -59,15 +59,45 @@ Route::get('/storage/{path}', function ($path) {
     return response()->file($fullPath);
 })->where('path', '.*');
 
-// Halaman diagnostik dan uji coba pengiriman Bot WhatsApp Fonnte
+// Halaman diagnostik, pengaturan, dan uji coba Bot WhatsApp Fonnte
 Route::match(['get', 'post'], '/test-wa', function (\Illuminate\Http\Request $request) {
     $result = null;
-    $target = $request->input('target', env('GURU_PIKET_WA', config('services.fonnte.guru_wa', '')));
-    $token = $request->input('token', env('FONNTE_TOKEN', config('services.fonnte.token', '')));
+    $action = $request->input('action', 'test');
 
     if ($request->isMethod('post')) {
-        $result = \App\Services\WhatsAppService::testKirim($target, $token);
+        $tokenInput = trim((string) $request->input('token', ''));
+        $targetInput = trim((string) $request->input('target', ''));
+
+        if ($action === 'save') {
+            if (empty($targetInput)) {
+                $result = ['status' => false, 'reason' => 'Nomor WhatsApp Guru wajib diisi untuk disimpan.'];
+            } else {
+                \App\Services\WhatsAppService::saveConfig($tokenInput, $targetInput);
+                return redirect()->route('test-wa')->with('success_save', 'Konfigurasi Token Fonnte & Nomor Guru Piket (' . $targetInput . ') berhasil disimpan permanen di server!');
+            }
+        } elseif ($action === 'test_pengajuan') {
+            if (!empty($tokenInput) && !empty($targetInput)) {
+                \App\Services\WhatsAppService::saveConfig($tokenInput, $targetInput);
+            }
+            $pengajuan = \App\Models\PengajuanIzin::latest()->first();
+            if ($pengajuan) {
+                $result = \App\Services\WhatsAppService::kirimNotifikasiPengajuanBaru($pengajuan, false);
+            } else {
+                $result = ['status' => false, 'reason' => 'Belum ada data surat izin di database untuk simulasi.'];
+            }
+        } else {
+            // Action test kirim pesan koneksi
+            if (!empty($tokenInput) && !empty($targetInput)) {
+                \App\Services\WhatsAppService::saveConfig($tokenInput, $targetInput);
+            }
+            $result = \App\Services\WhatsAppService::testKirim($targetInput, $tokenInput);
+        }
     }
 
-    return view('test-wa', compact('result', 'target', 'token'));
+    $config = \App\Services\WhatsAppService::getConfig();
+    $target = $request->input('target', $config['guru_wa']);
+    $token = $request->input('token', $config['token']);
+    $logs = \App\Services\WhatsAppService::getLogs();
+
+    return view('test-wa', compact('result', 'target', 'token', 'config', 'logs'));
 })->name('test-wa');
